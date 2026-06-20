@@ -1,0 +1,57 @@
+clc;
+clear;
+% Datos iniciales
+P = 1250;          % Semilla inicial
+tol = 1e-6;        % Tolerancia
+max_iter = 20;    
+% Inicializar vectores para guardar el historial y poder graficar
+hist_P = [];
+hist_error = [];
+fprintf('Iteracion\tP_actual\tF(P)\t\tF''(P)\t\tP_nuevo\t\tError\n');
+for i = 1:max_iter
+   % Funcion
+   F = -0.00220682052*P^2 + 4.5577447*P - 12988.347;
+  
+   % Derivada
+   dF = -0.00441364104*P + 4.5577447;
+  
+   % Newton-Raphson
+   P_new = P - F/dF;
+  
+   % Error relativo
+   error = abs((P_new - P)/P_new);
+  
+   % Guardar valores en los vectores para las gráficas
+   hist_P(i) = P;
+   hist_error(i) = error;
+  
+   % Mostrar tabla
+   fprintf('%d\t\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\n',...
+           i, P, F, dF, P_new, error);
+  
+   % Criterio parada
+   if error < tol
+       break;
+   end
+  
+   % Actualizar
+   P = P_new;
+end
+% ==========================================
+% SECCIÓN DE GRÁFICAS
+% ==========================================
+figure('Name', 'Análisis de Newton-Raphson', 'NumberTitle', 'off');
+% Gráfica 1: Evolución de la aproximación P
+subplot(2,1,1);
+plot(1:length(hist_P), hist_P, '-o', 'LineWidth', 1.5, 'MarkerFaceColor', 'b');
+grid on;
+title('Evolución del valor estimado P por iteración');
+xlabel('Iteración');
+ylabel('Valor de P');
+% Gráfica 2: Comportamiento del Error (Escala logarítmica para ver la convergencia rápida)
+subplot(2,1,2);
+semilogy(1:length(hist_error), hist_error, '-sr', 'LineWidth', 1.5, 'MarkerFaceColor', 'r');
+grid on;
+title('Convergencia del Error Relativo');
+xlabel('Iteración');
+ylabel('Error');

@@ -1,0 +1,150 @@
+clear; clc; close all;
+
+%% Coeficientes del modelo
+b0 = -588933.8711452408;
+b1 = 55.707760688145406;
+b2 = 56700.07916899151;
+b3 = -0.0022068205175011226;
+b4 = -1364.6401527711262;
+b5 = -2.5575007983977334;
+
+modelo = @(P,T) b0 + b1.*P + b2.*T + b3.*P.^2 + b4.*T.^2 + b5.*P.*T;
+
+%% Cargar datos
+archivo = "maize.xlsx";
+datos = readtable(archivo, "VariableNamingRule", "preserve");
+
+Y_real = datos.("Yield_Maize (kg/ha)");
+P_real = datos.("Precipitation_ANN (mm)");
+T_real = datos.("Temperature_ANN ( grados C)");
+
+Y_real = double(Y_real);
+P_real = double(P_real);
+T_real = double(T_real);
+
+%% Evaluación del modelo
+Y_pred = modelo(P_real,T_real);
+error = Y_real - Y_pred;
+
+RMSE = sqrt(mean(error.^2));
+MAE = mean(abs(error));
+R2 = 1 - sum(error.^2)/sum((Y_real - mean(Y_real)).^2);
+
+fprintf("RMSE = %.4f\n",RMSE);
+fprintf("MAE = %.4f\n",MAE);
+fprintf("R2 = %.4f\n",R2);
+
+%% Superficie del modelo
+P_vec = linspace(min(P_real),max(P_real),80);
+T_vec = linspace(min(T_real),max(T_real),80);
+[P_grid,T_grid] = meshgrid(P_vec,T_vec);
+Y_grid = modelo(P_grid,T_grid);
+
+figure;
+surf(P_grid,T_grid,Y_grid);
+xlabel("Precipitación P (mm)");
+ylabel("Temperatura T ( grados C)");
+zlabel("Rendimiento Y (kg/ha)");
+title("Superficie del modelo polinomial");
+grid on; shading interp; colorbar;
+exportgraphics(gcf,"figura_1_superficie_modelo.png","Resolution",300);
+
+figure;
+contourf(P_grid,T_grid,Y_grid,20);
+xlabel("Precipitación P (mm)");
+ylabel("Temperatura T ( grados C)");
+title("Curvas de nivel del rendimiento estimado");
+colorbar; grid on;
+exportgraphics(gcf,"figura_2_contorno_modelo.png","Resolution",300);
+
+%% Comparación real vs estimado
+figure;
+plot(Y_real,Y_pred,"o","MarkerSize",8,"LineWidth",1.5);
+hold on;
+plot([min(Y_real) max(Y_real)],[min(Y_real) max(Y_real)],"--","LineWidth",1.5);
+xlabel("Rendimiento real (kg/ha)");
+ylabel("Rendimiento estimado (kg/ha)");
+title("Comparación entre rendimiento real y estimado");
+grid on;
+exportgraphics(gcf,"figura_3_real_vs_estimado.png","Resolution",300);
+
+figure;
+bar(error);
+xlabel("Observación");
+ylabel("Error");
+title("Residuos del modelo");
+grid on;
+exportgraphics(gcf,"figura_4_residuos.png","Resolution",300);
+
+%% Problema inverso
+T0 = mean(T_real);
+Y_objetivo = mean(Y_real);
+P0 = mean(P_real);
+
+F = @(P) modelo(P,T0) - Y_objetivo;
+dF = @(P) b1 + 2*b3.*P + b5*T0;
+
+tol = 1e-6;
+maxIter = 100;
+
+%% Newton-Raphson
+P_newton = P0;
+hist_newton = [];
+
+for k = 1:maxIter
+    P_next = P_newton - F(P_newton)/dF(P_newton);
+    hist_newton = [hist_newton; k P_next abs(F(P_next))];
+
+    if abs(P_next - P_newton) < tol
+        P_newton = P_next;
+        break;
+    end
+
+    P_newton = P_next;
+end
+
+%% Punto fijo con relajación
+P_aux = linspace(min(P_real),max(P_real),200);
+alpha = 0.5/max(abs(dF(P_aux)));
+
+P_pf = P0;
+hist_pf = [];
+
+for k = 1:maxIter*5
+    P_next = P_pf - alpha*F(P_pf);
+    hist_pf = [hist_pf; k P_next abs(F(P_next))];
+
+    if abs(P_next - P_pf) < tol
+        P_pf = P_next;
+        break;
+    end
+
+    P_pf = P_next;
+end
+
+%% Nelder-Mead
+J = @(P) (modelo(P,T0) - Y_objetivo).^2;
+opciones = optimset("TolX",tol,"TolFun",tol,"MaxIter",maxIter,"Display","off");
+[P_nm,Jmin,exitflag,output_nm] = fminsearch(J,P0,opciones);
+
+%% Tabla comparativa
+Metodo = ["Newton-Raphson"; "Punto fijo"; "Nelder-Mead"];
+P_sol = [P_newton; P_pf; P_nm];
+Residual = [abs(F(P_newton)); abs(F(P_pf)); abs(F(P_nm))];
+Iteraciones = [size(hist_newton,1); size(hist_pf,1); output_nm.iterations];
+
+tabla = table(Metodo,P_sol,Residual,Iteraciones);
+disp(tabla);
+writetable(tabla,"tabla_comparacion_metodos.xlsx");
+
+%% Convergencia
+figure;
+semilogy(hist_newton(:,1),hist_newton(:,3),"-o","LineWidth",1.5);
+hold on;
+semilogy(hist_pf(:,1),hist_pf(:,3),"-s","LineWidth",1.5);
+xlabel("Iteración");
+ylabel("|F(P)|");
+title("Comparación de convergencia");
+legend("Newton-Raphson","Punto fijo","Location","best");
+grid on;
+exportgraphics(gcf,"figura_7_convergencia.png","Resolution",300);

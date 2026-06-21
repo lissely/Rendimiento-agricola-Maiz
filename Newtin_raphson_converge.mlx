@@ -1,0 +1,75 @@
+clear; clc;
+
+%% 1. Cargar datos del Excel
+
+data = readtable("maize.xlsx", "VariableNamingRule", "preserve");
+
+Yreal = str2double(string(data.("Yield_Maize (kg/ha)")));
+Pdata = str2double(string(data.("Precipitation_ANN (mm)")));
+Tdata = str2double(string(data.("Temperature_ANN (°C)")));
+
+%% 2. Betas del modelo
+
+b0 = -588933.8711452408;
+b1 = 55.707760688145406;
+b2 = 56700.07916899151;
+b3 = -0.0022068205175011226;
+b4 = -1364.6401527711262;
+b5 = -2.5575007983977334;
+
+%% 3. Valores base
+
+T0 = mean(Tdata, "omitnan");       % Temperatura constante
+P0 = mean(Pdata, "omitnan");       % Punto inicial para Newton
+Ydeseado = 1500;                  % Producción deseada provisional
+
+Tol = 1e-6;
+maxIter = 100;
+
+%% 4. Definir función del modelo
+
+f = @(P) b0 + b1*P + b2*T0 + b3*P.^2 + b4*T0.^2 + b5*P*T0;
+
+F = @(P) f(P) - Ydeseado;
+
+dF = @(P) b1 + 2*b3*P + b5*T0;
+
+%% 5. Método de Newton-Raphson
+
+P = P0;
+historial = [];
+
+for k = 1:maxIter
+
+    if abs(dF(P)) < 1e-12
+        error("La derivada es muy cercana a cero. Newton no puede continuar.");
+    end
+
+    Pnuevo = P - F(P)/dF(P);
+
+    error_rel = abs(Pnuevo - P)/max(abs(Pnuevo), 1);
+
+    historial = [historial; k, P, F(P), dF(P), Pnuevo, error_rel];
+
+    if error_rel < Tol
+        break;
+    end
+
+    P = Pnuevo;
+end
+
+%% 6. Mostrar resultados
+
+tablaNewton = array2table(historial, ...
+    "VariableNames", ["Iteracion", "P_actual", "F_P", "Derivada", "P_nuevo", "Error"]);
+
+disp(tablaNewton)
+
+Psol = historial(end,5);
+Ycalculado = f(Psol);
+
+fprintf("Temperatura constante T0 = %.4f °C\n", T0);
+fprintf("Producción deseada Y* = %.4f kg/ha\n", Ydeseado);
+fprintf("Precipitación estimada P = %.4f mm\n", Psol);
+fprintf("Producción calculada = %.4f kg/ha\n", Ycalculado);
+fprintf("Error final = %.15e\n", abs(Ycalculado - Ydeseado));

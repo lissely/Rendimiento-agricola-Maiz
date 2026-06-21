@@ -1,0 +1,79 @@
+function nelder_mead_optimization()
+    
+    Y_target = 1570.6835;
+    T0 = 19.7635;
+    
+   
+    J = @(P) (-0.00220682052*P.^2 + 4.5577447*P - 14559.0305).^2;
+    
+   
+    P0 = 1305.7274; 
+    
+    
+    global history_P history_J
+    history_P = [];
+    history_J = [];
+    
+   
+    options = optimset('OutputFcn', @myoutput, 'Display', 'final');
+    
+  
+    [P_opt, J_min, exitflag, output] = fminsearch(J, P0, options);
+    
+  
+    iteraciones = (0:length(history_P)-1)';
+    TablaResultados = table(iteraciones, history_P, history_J, ...
+        'VariableNames', {'Iteracion', 'Estimacion_P', 'Error_Cuadratico_J'});
+    
+    disp('=== HISTORIAL DE ITERACIONES ACTUALIZADO (TABLA) ===');
+    disp(TablaResultados);
+    
+    fprintf('Solución óptima encontrada: P = %.4f mm\n', P_opt);
+    fprintf('Valor mínimo de la función objetivo: J(P) = %.4e\n', J_min);
+    fprintf('Número total de iteraciones: %d\n\n', output.iterations);
+    
+    fig = figure('Color', 'w'); 
+    subplot(2,1,1);
+    plot(iteraciones, history_P, '-o', 'LineWidth', 2, 'Color', [0 0.4470 0.7410], ...
+        'MarkerFaceColor', [0 0.4470 0.7410], 'MarkerSize', 4);
+    grid on;
+    
+    ax1 = gca;
+    ax1.Color = 'w';         
+    ax1.XColor = 'k';         
+    ax1.YColor = 'k';         
+    ax1.GridColor = 'k';    
+    ax1.GridAlpha = 0.15;     
+    
+    title('Proceso Iterativo de Minimización mediante Nelder-Mead', 'Color', 'k', 'FontSize', 11);
+    ylabel('Precipitación P (mm)', 'Color', 'k');
+    xlabel('Iteración', 'Color', 'k');
+    
+    subplot(2,1,2);
+    semilogy(iteraciones, history_J, '-s', 'LineWidth', 2, 'Color', [0.8500 0.3250 0.0980], ...
+        'MarkerFaceColor', [0.8500 0.3250 0.0980], 'MarkerSize', 4);
+    grid on;
+    
+    ax2 = gca;
+    ax2.Color = 'w';
+    ax2.XColor = 'k';
+    ax2.YColor = 'k';
+    ax2.GridColor = 'k';
+    ax2.GridAlpha = 0.15;
+    
+    ylabel('Función Objetivo J(P) [Escala Log]', 'Color', 'k');
+    xlabel('Iteración', 'Color', 'k');
+    
+    set(fig, 'InvertHardcopy', 'off'); 
+    saveas(fig, 'nelder_mead.png');
+end
+
+
+function stop = myoutput(x, optimValues, state)
+    stop = false;
+    global history_P history_J
+    if strcmp(state, 'iter') || strcmp(state, 'init')
+        history_P = [history_P; x];
+        history_J = [history_J; optimValues.fval];
+    end
+end
